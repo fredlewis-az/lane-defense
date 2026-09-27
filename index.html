@@ -68,6 +68,14 @@
       font-size: 11px;
       padding: 0;
     }
+    #btn-mute {
+      top: max(8px, env(safe-area-inset-top));
+      right: max(58px, calc(8px + env(safe-area-inset-right) + 44px));
+      width: 44px; height: 36px;
+      font-size: 18px;
+      line-height: 1;
+      padding: 0;
+    }
   </style>
 </head>
 <body>
@@ -76,6 +84,7 @@
     <button type="button" class="tbtn" id="btn-left" aria-label="Move left">◀</button>
     <button type="button" class="tbtn" id="btn-right" aria-label="Move right">▶</button>
     <button type="button" class="tbtn" id="btn-fire" aria-label="Fire">FIRE</button>
+    <button type="button" class="tbtn" id="btn-mute" aria-label="Mute">🔊</button>
     <button type="button" class="tbtn" id="btn-pause" aria-label="Pause">II</button>
   </div>
   <script>
@@ -126,6 +135,11 @@
     if (state === 'playing') togglePause();
     else if (state === 'paused') togglePause();
   });
+  document.getElementById('btn-mute').addEventListener('click', (e) => {
+    e.preventDefault();
+    ensureAudio();
+    toggleMute();
+  });
 
   let state = 'start';
   let score = 0, lives = 3, wave = 1, hiScore = 0;
@@ -147,25 +161,150 @@
   let pendingScore = 0;
 
   let audioCtx = null;
+  let marchStepIdx = 0;
+  const MARCH_NOTES = [110, 98, 87, 82];
+
   function ensureAudio() {
     if (!audioCtx) {
-      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) {
+        return Promise.resolve(false);
+      }
     }
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx.state === 'suspended') {
+      return audioCtx.resume().then(() => true).catch(() => false);
+    }
+    return Promise.resolve(true);
   }
 
-  function beep(freq, dur, type, vol) {
-    if (muted || !audioCtx) return;
+  function unlockAudioFromGesture() {
+    ensureAudio();
+  }
+  window.addEventListener('pointerdown', unlockAudioFromGesture, { passive: true });
+  window.addEventListener('touchstart', unlockAudioFromGesture, { passive: true });
+  window.addEventListener('keydown', unlockAudioFromGesture, { passive: true });
+
+  function audioTime() {
+    return audioCtx ? audioCtx.currentTime : 0;
+  }
+
+  function sfxBlocked() {
+    return muted || !audioCtx;
+  }
+
+  function toggleMute() {
+    muted = !muted;
+    const btn = document.getElementById('btn-mute');
+    if (btn) btn.textContent = muted ? '🔇' : '🔊';
+  }
+
+  function sfxPlayerShot() {
+    if (sfxBlocked()) return;
+    const t = audioTime();
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
-    o.type = type || 'square';
-    o.frequency.value = freq;
-    g.gain.value = vol || 0.08;
+    o.type = 'square';
+    o.frequency.setValueAtTime(920, t);
+    o.frequency.exponentialRampToValueAtTime(180, t + 0.11);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.055, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
     o.connect(g);
     g.connect(audioCtx.destination);
-    o.start();
-    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-    o.stop(audioCtx.currentTime + dur);
+    o.start(t);
+    o.stop(t + 0.12);
+  }
+
+  function sfxMarchStep() {
+    if (sfxBlocked()) return;
+    const f = MARCH_NOTES[marchStepIdx & 3];
+    marchStepIdx++;
+    const t = audioTime();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0.07, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.085);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t + 0.09);
+  }
+
+  function sfxInvaderKill() {
+    if (sfxBlocked()) return;
+    const t = audioTime();
+    for (let i = 0; i < 12; i++) {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = i % 2 ? 'square' : 'sawtooth';
+      o.frequency.setValueAtTime(180 + Math.random() * 1400, t);
+      const dur = 0.03 + Math.random() * 0.045;
+      g.gain.setValueAtTime(0.022, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.start(t);
+      o.stop(t + dur + 0.01);
+    }
+  }
+
+  function sfxPlayerHit() {
+    if (sfxBlocked()) return;
+    const t = audioTime();
+    for (let i = 0; i < 4; i++) {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'sawtooth';
+      const start = t + i * 0.018;
+      o.frequency.setValueAtTime(140 - i * 15, start);
+      o.frequency.exponentialRampToValueAtTime(28, start + 0.48);
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.exponentialRampToValueAtTime(0.065, start + 0.025);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + 0.5);
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.start(start);
+      o.stop(start + 0.52);
+    }
+  }
+
+  function sfxWaveClear() {
+    if (sfxBlocked()) return;
+    const notes = [392, 523.25, 659.25, 783.99];
+    const t0 = audioTime();
+    notes.forEach((freq, i) => {
+      const t = t0 + i * 0.09;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.045, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.start(t);
+      o.stop(t + 0.12);
+    });
+  }
+
+  function sfxGameOver() {
+    if (sfxBlocked()) return;
+    const t = audioTime();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(220, t);
+    o.frequency.exponentialRampToValueAtTime(48, t + 0.75);
+    g.gain.setValueAtTime(0.055, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t + 0.82);
   }
 
   function loadHighScores() {
@@ -308,7 +447,7 @@
     ensureAudio();
     if (state !== 'playing' || bullet) return;
     bullet = { x: player.x + player.w / 2 - 2, y: player.y - 8, w: 4, h: 10, vy: -9 };
-    beep(880, 0.06, 'square', 0.05);
+    sfxPlayerShot();
   }
 
   const keys = {};
@@ -320,7 +459,7 @@
       if (state === 'gameover') goRetry();
       else { restartFull(); state = 'playing'; }
     }
-    if (e.code === 'KeyM') { muted = !muted; }
+    if (e.code === 'KeyM') { ensureAudio(); toggleMute(); }
     if (e.code === 'Space') { e.preventDefault(); firePressed(); }
     if (state === 'start' && (e.code === 'Enter' || e.code === 'Space')) {
       e.preventDefault();
@@ -510,7 +649,7 @@
               inv.alive = false;
               bullet = null;
               score += ROW_POINTS[inv.row];
-              beep(220 + inv.row * 40, 0.08, 'square', 0.06);
+              sfxInvaderKill();
               break;
             }
           }
@@ -520,7 +659,7 @@
 
     const alive = livingInvaders();
     if (alive.length === 0) {
-      beep(520, 0.15, 'triangle', 0.07);
+      sfxWaveClear();
       startWave();
       return;
     }
@@ -542,12 +681,12 @@
         for (const inv of invaders) {
           if (inv.alive) inv.y += 14;
         }
-        beep(80, 0.04, 'sawtooth', 0.04);
       } else {
         for (const inv of invaders) {
           if (inv.alive) inv.x += step;
         }
       }
+      sfxMarchStep();
       for (const inv of alive) {
         inv.anim = 1 - inv.anim;
       }
@@ -572,7 +711,6 @@
         y: shooter.y + shooter.h,
         w: 4, h: 10, vy: 5 + wave * 0.15,
       });
-      beep(120, 0.05, 'sawtooth', 0.03);
     }
 
     for (let i = invaderBullets.length - 1; i >= 0; i--) {
@@ -601,14 +739,14 @@
     lives--;
     shakeT = 0.35;
     bullet = null;
-    beep(90, 0.25, 'sawtooth', 0.1);
+    sfxPlayerHit();
     if (lives <= 0) gameOver();
   }
 
   function gameOver() {
     state = 'gameover';
     if (score > hiScore) hiScore = score;
-    beep(60, 0.4, 'sawtooth', 0.08);
+    sfxGameOver();
   }
 
   function drawInvader(inv) {
@@ -813,6 +951,11 @@
   updateHiFromStorage();
   resetGame(true);
   requestAnimationFrame(loop);
+
+  window.__ldAudioDiag = () => ({
+    state: audioCtx ? audioCtx.state : 'none',
+    muted,
+  });
 })();
   </script>
 </body>
