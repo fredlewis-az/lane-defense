@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -79,6 +80,7 @@
   </style>
 </head>
 <body>
+  <audio id="silent-unlock" loop playsinline preload="auto" style="display:none" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAA="></audio>
   <div id="wrap"><canvas id="game" width="480" height="640"></canvas></div>
   <div id="touch-ui">
     <button type="button" class="tbtn" id="btn-left" aria-label="Move left">◀</button>
@@ -92,6 +94,7 @@
   'use strict';
 
   const W = 480, H = 640;
+  const BUILD_VERSION = 'v1.2';
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
   const touchUi = document.getElementById('touch-ui');
@@ -163,27 +166,104 @@
   let audioCtx = null;
   let marchStepIdx = 0;
   const MARCH_NOTES = [110, 98, 87, 82];
+  let audioNeedsUnlock = true;
+  const silentUnlockEl = document.getElementById('silent-unlock');
 
-  function ensureAudio() {
-    if (!audioCtx) {
-      try {
+  function setAudioSessionPlayback() {
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback';
+    } catch (e) { /* ignore */ }
+  }
+
+  function playSilentHtmlAudio() {
+    if (!silentUnlockEl) return;
+    try {
+      silentUnlockEl.volume = 0.0001;
+      const p = silentUnlockEl.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch (e) { /* ignore */ }
+  }
+
+  function playSilentBufferSync() {
+    if (!audioCtx) return;
+    try {
+      const buf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      src.start(0);
+      src.stop(0);
+    } catch (e) { /* ignore */ }
+  }
+
+  function audioCtxNeedsResume() {
+    if (!audioCtx) return true;
+    const s = audioCtx.state;
+    return s === 'suspended' || s === 'interrupted';
+  }
+
+  function unlockAudioSync() {
+    setAudioSessionPlayback();
+    playSilentHtmlAudio();
+    try {
+      if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      } catch (e) {
-        return Promise.resolve(false);
       }
-    }
-    if (audioCtx.state === 'suspended') {
-      return audioCtx.resume().then(() => true).catch(() => false);
-    }
-    return Promise.resolve(true);
+      playSilentBufferSync();
+      if (audioCtxNeedsResume()) {
+        audioCtx.resume();
+      }
+    } catch (e) { /* ignore */ }
+    audioNeedsUnlock = !audioCtx || audioCtx.state !== 'running';
   }
 
   function unlockAudioFromGesture() {
-    ensureAudio();
+    unlockAudioSync();
+    if (audioCtx && audioCtxNeedsResume()) {
+      audioCtx.resume().then(() => {
+        audioNeedsUnlock = audioCtx.state !== 'running';
+      }).catch(() => {
+        audioNeedsUnlock = true;
+      });
+    } else if (audioCtx && audioCtx.state === 'running') {
+      audioNeedsUnlock = false;
+    }
   }
-  window.addEventListener('pointerdown', unlockAudioFromGesture, { passive: true });
-  window.addEventListener('touchstart', unlockAudioFromGesture, { passive: true });
+
+  function markAudioNeedsUnlockOnReturn() {
+    if (!audioCtx) {
+      audioNeedsUnlock = true;
+      return;
+    }
+    if (audioCtxNeedsResume()) audioNeedsUnlock = true;
+  }
+
+  ['touchend', 'pointerup', 'click'].forEach((ev) => {
+    window.addEventListener(ev, unlockAudioFromGesture, { passive: true, capture: true });
+  });
   window.addEventListener('keydown', unlockAudioFromGesture, { passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') markAudioNeedsUnlockOnReturn();
+  });
+  window.addEventListener('pageshow', markAudioNeedsUnlockOnReturn);
+  window.addEventListener('focus', markAudioNeedsUnlockOnReturn);
+
+  function ensureAudio() {
+    unlockAudioSync();
+    if (!audioCtx) return Promise.resolve(false);
+    if (audioCtx.state === 'running') {
+      audioNeedsUnlock = false;
+      return Promise.resolve(true);
+    }
+    if (audioCtxNeedsResume()) {
+      return audioCtx.resume().then(() => {
+        audioNeedsUnlock = audioCtx.state !== 'running';
+        return audioCtx.state === 'running';
+      }).catch(() => false);
+    }
+    audioNeedsUnlock = audioCtx.state !== 'running';
+    return Promise.resolve(audioCtx.state === 'running');
+  }
 
   function audioTime() {
     return audioCtx ? audioCtx.currentTime : 0;
@@ -836,6 +916,10 @@
       ctx.fillStyle = '#7cff6b';
       ctx.fillText(isTouch ? 'TAP TO START' : 'PRESS ENTER OR TAP', W / 2, H * 0.30);
       drawHighScoreTable(W / 2, H * 0.36, 'TOP SCORES');
+      ctx.fillStyle = '#556677';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(BUILD_VERSION, W - 10, H - 10);
       ctx.restore();
       return;
     }
@@ -954,7 +1038,8 @@
 
   window.__ldAudioDiag = () => ({
     state: audioCtx ? audioCtx.state : 'none',
-    muted,
+    needsUnlock: audioNeedsUnlock,
+    version: BUILD_VERSION,
   });
 })();
   </script>
