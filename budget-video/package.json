@@ -1,0 +1,26 @@
+{
+  "name": "budget-video",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "generate:audio": "python3 scripts/generate-audio.py",
+    "render": "remotion render src/index.ts EveryDollar out/every-dollar-has-a-job.mp4 --codec=h264",
+    "still": "remotion still src/index.ts EveryDollar"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@remotion/cli": "^4.0.529",
+    "@remotion/google-fonts": "^4.0.529",
+    "@remotion/media-utils": "^4.0.529",
+    "@remotion/renderer": "^4.0.529",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "remotion": "^4.0.529",
+    "typescript": "^7.0.2"
+  }
+}

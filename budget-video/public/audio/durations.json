@@ -1,0 +1,38 @@
+{
+  "voice": "en-US-AndrewNeural",
+  "paddingSec": 0.35,
+  "scenes": {
+    "scene01": {
+      "audioSec": 8.784,
+      "sceneSec": 9.134
+    },
+    "scene02": {
+      "audioSec": 10.8,
+      "sceneSec": 11.15
+    },
+    "scene03": {
+      "audioSec": 18.312,
+      "sceneSec": 18.662000000000003
+    },
+    "scene04": {
+      "audioSec": 15.048,
+      "sceneSec": 15.398
+    },
+    "scene05": {
+      "audioSec": 16.992,
+      "sceneSec": 17.342000000000002
+    },
+    "scene06": {
+      "audioSec": 9.792,
+      "sceneSec": 10.142
+    },
+    "scene07": {
+      "audioSec": 7.296,
+      "sceneSec": 7.646
+    },
+    "scene08": {
+      "audioSec": 0,
+      "sceneSec": 4.0
+    }
+  }
+}
