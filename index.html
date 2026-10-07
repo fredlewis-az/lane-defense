@@ -77,6 +77,25 @@
       line-height: 1;
       padding: 0;
     }
+    #touch-ui { z-index: 4; }
+    #ver-link {
+      position: fixed;
+      z-index: 8;
+      top: max(8px, env(safe-area-inset-top));
+      left: max(8px, env(safe-area-inset-left));
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 8px 12px;
+      color: #7cff6b;
+      font: 600 12px/1 system-ui, sans-serif;
+      letter-spacing: 0.03em;
+      text-decoration: none;
+      border-radius: 6px;
+      border: 1px solid rgba(124, 255, 107, 0.55);
+      background: rgba(5, 8, 16, 0.88);
+    }
+    #ver-link[hidden] { display: none !important; }
   </style>
 </head>
 <body>
@@ -89,6 +108,7 @@
     <button type="button" class="tbtn" id="btn-mute" aria-label="Mute">🔊</button>
     <button type="button" class="tbtn" id="btn-pause" aria-label="Pause">II</button>
   </div>
+  <a id="ver-link" href="classic/" title="Play the classic version">Classic →</a>
   <script>
 (function () {
   'use strict';
@@ -893,7 +913,15 @@
     }
   }
 
+  function syncClassicLink() {
+    const link = document.getElementById('ver-link');
+    if (!link) return;
+    const show = state === 'start' || state === 'gameover' || state === 'scores' || state === 'initials';
+    link.hidden = !show;
+  }
+
   function draw() {
+    syncClassicLink();
     let ox = 0, oy = 0;
     if (shakeT > 0) {
       ox = (Math.random() - 0.5) * 8;

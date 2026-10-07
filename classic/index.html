@@ -1,0 +1,1756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LD Classic">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#000000">
+  <title>Lane Defense Classic</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23000' width='32' height='32'/%3E%3Cpath fill='%237dff9a' d='M6 8h20v2H6zm2 4h16v2H8zm-2 4h20v2H6zm2 4h16v2H8zM4 24h24v2H4z'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect fill='%23000000' width='180' height='180'/%3E%3Cpath fill='%237dff9a' d='M40 48h100v12H40zm12 18h76v12H52zm-8 18h92v12H44zm8 18h76v12H52zM30 120h120v10H30z'/%3E%3C/svg%3E">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --chrome: calc(46px + env(safe-area-inset-top));
+      --deck-h: 0px;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      color: #7dff9a;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body.show-deck {
+      --deck-h: calc(max(150px, 22vh) + env(safe-area-inset-bottom));
+    }
+    #topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--chrome);
+      padding: env(safe-area-inset-top) 8px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: #000;
+      z-index: 8;
+    }
+    #topbar .group { display: flex; gap: 6px; align-items: center; }
+    #topbar a, #topbar button {
+      font: 600 12px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      color: #7dff9a;
+      background: #000;
+      border: 1px solid rgba(125, 255, 154, 0.55);
+      border-radius: 4px;
+      text-decoration: none;
+      min-height: 32px;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #topbar button.on {
+      background: #7dff9a;
+      color: #03140a;
+      border-color: #7dff9a;
+    }
+    #topbar a:focus-visible, #topbar button:focus-visible, #deck button:focus-visible {
+      outline: 2px solid #e7fff0;
+      outline-offset: 2px;
+    }
+    #wrap {
+      position: fixed;
+      left: 0; right: 0;
+      top: var(--chrome);
+      bottom: var(--deck-h);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    canvas {
+      display: block;
+      background: #000;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      touch-action: none;
+    }
+    #deck {
+      display: none;
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      height: var(--deck-h);
+      gap: 8px;
+      padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+      background: #000;
+      z-index: 8;
+    }
+    body.show-deck #deck { display: flex; }
+    #deck button {
+      flex: 1;
+      min-width: 0;
+      border-radius: 14px;
+      border: 2px solid #2f8a4e;
+      background: #07140c;
+      color: #c8ffd8;
+      font: 700 13px/1.1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      letter-spacing: 0.12em;
+      touch-action: none;
+    }
+    #deck button .arrow { display: block; font-size: 42px; letter-spacing: 0; line-height: 1; }
+    #deck button .cap { display: block; margin-top: 6px; }
+    #btn-fire {
+      flex: 1.12;
+      border-width: 3px;
+      border-color: #8dffb0;
+      background: #102818;
+      color: #f3fff6;
+      animation: firepulse 1.6s ease-in-out infinite;
+    }
+    #deck button.held {
+      background: #7dff9a;
+      color: #03140a;
+      border-color: #e7fff0;
+      animation: none;
+    }
+    @keyframes firepulse {
+      0%, 100% { border-color: #6dff8a; }
+      50% { border-color: #f3fff6; }
+    }
+  </style>
+</head>
+<body>
+  <audio id="silent-unlock" loop playsinline preload="auto" style="display:none" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAA="></audio>
+  <header id="topbar">
+    <a id="lane-link" href="../" title="Back to Lane Defense">← Lane</a>
+    <div class="group">
+      <button type="button" id="btn-auto" aria-label="Toggle auto-fire">AUTO OFF</button>
+      <button type="button" id="btn-mute" aria-label="Mute">MUTE</button>
+      <button type="button" id="btn-pause" aria-label="Pause">PAUSE</button>
+    </div>
+  </header>
+  <div id="wrap"><canvas id="game" width="480" height="640"></canvas></div>
+  <div id="deck">
+    <button type="button" id="btn-left" aria-label="Move left"><span class="arrow">◀</span><span class="cap">LEFT</span></button>
+    <button type="button" id="btn-fire" aria-label="Fire"><span class="arrow">●</span><span class="cap">FIRE</span></button>
+    <button type="button" id="btn-right" aria-label="Move right"><span class="arrow">▶</span><span class="cap">RIGHT</span></button>
+  </div>
+  <script>
+(function () {
+  'use strict';
+
+  var W = 480, H = 640;
+  var BUILD_VERSION = 'v1.0';
+  var PX = 2;
+  var COLS = 11, ROWS = 5;
+  var SPR_W = 12 * PX, SPR_H = 8 * PX;
+  var GAP_X = 8, GAP_Y = 12;
+  var FORM_W = COLS * SPR_W + (COLS - 1) * GAP_X;
+  var FORM_H = ROWS * SPR_H + (ROWS - 1) * GAP_Y;
+  var STEP_X = 8, STEP_Y = 16, MARGIN = 16;
+  var BASE_Y = 104;
+  var SHIELD_Y = 428;
+  var PLAYER_Y = 560;
+  var GROUND_Y = 592;
+  var PLAYER_SPEED = 300;
+  var SHOT_SPEED = 560;
+  var INV_SHOT_SPEED = 150;
+  var COLOR = '#7dff9a';
+  var BRIGHT = '#e7fff0';
+  var DIM = '#1d6a38';
+  var FONT = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+  var HS_KEY = 'laneDefenseClassicHi_v1';
+  var ROW_KIND = ['top', 'mid', 'mid', 'bot', 'bot'];
+  var ROW_PTS = [30, 20, 20, 10, 10];
+  var UFO_SCORES = [100, 50, 50, 100, 150, 100, 300, 100, 50, 150];
+  var MARCH = [164.81, 146.83, 130.81, 110];
+  var SHIELD_PAT = [
+    '..XXXXXXXXXX..',
+    '.XXXXXXXXXXXX.',
+    'XXXXXXXXXXXXXX',
+    'XXXXXXXXXXXXXX',
+    'XXXXXXXXXXXXXX',
+    'XXXXX....XXXXX',
+    'XXXX......XXXX',
+    'XXX........XXX'
+  ];
+
+  var SPRITES = {
+    top: [
+      [
+        '....####....',
+        '..########..',
+        '.##..##..##.',
+        '############',
+        '##.#....#.##',
+        '..##.##.##..',
+        '.#..#..#..#.',
+        '#....##....#'
+      ],
+      [
+        '....####....',
+        '..########..',
+        '.##..##..##.',
+        '############',
+        '##.#....#.##',
+        '.##.##.##.##',
+        '#..#....#..#',
+        '.#...##...#.'
+      ]
+    ],
+    mid: [
+      [
+        '#..#....#..#',
+        '.#.###.##.#.',
+        '############',
+        '.#.######.#.',
+        '############',
+        '..###..###..',
+        '...#....#...',
+        '..#......#..'
+      ],
+      [
+        '#..#....#..#',
+        '.#.###.##.#.',
+        '############',
+        '.#.######.#.',
+        '############',
+        '.###....###.',
+        '.#........#.',
+        '...#....#...'
+      ]
+    ],
+    bot: [
+      [
+        '...######...',
+        '.##########.',
+        '############',
+        '###..##..###',
+        '############',
+        '..##....##..',
+        '.##..##..##.',
+        '#...#..#...#'
+      ],
+      [
+        '...######...',
+        '.##########.',
+        '############',
+        '###..##..###',
+        '############',
+        '.##..##..##.',
+        '#...#..#...#',
+        '.#..#..#..#.'
+      ]
+    ]
+  };
+
+  var PLAYER_SPRITE = [
+    '.....####...',
+    '....######..',
+    '...########.',
+    '############',
+    '############',
+    '.###.##.###.',
+    '############',
+    '.##########.'
+  ];
+
+  var SAUCER = [
+    '......####......',
+    '....########....',
+    '..############..',
+    '.##############.',
+    '################',
+    '.##.##.##.##.##.',
+    '...###....###...'
+  ];
+
+  var EXPLODE = [
+    '#..#....#..#',
+    '.#.#.##.#.#.',
+    '..#.####.#..',
+    '##.##..##.##',
+    '..#.####.#..',
+    '.#.#.##.#.#.',
+    '#..#....#..#',
+    '...#....#...'
+  ];
+
+  var canvas = document.getElementById('game');
+  var ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  var state = 'start';
+  var score = 0, lives = 3, wave = 1, hiScore = 0;
+  var muted = false, autoFire = false, autoDefaulted = false;
+  var bonusGiven = false;
+  var playerShots = 0;
+  var overReason = '';
+  var dir = 1, frame = 0;
+  var marchAcc = 0, marchHold = 0, marchStepIdx = 0;
+  var fireAcc = 1;
+  var freezeT = 0, invulnT = 0, pendingRespawn = false;
+  var waveTimer = 0;
+  var ufoTimer = 8;
+  var lastStart = 0;
+  var prefer = 0;
+  var storageOk = true;
+
+  var player = {
+    x: (W - PLAYER_SPRITE[0].length * PX) / 2,
+    y: PLAYER_Y,
+    w: PLAYER_SPRITE[0].length * PX,
+    h: PLAYER_SPRITE.length * PX
+  };
+  var playerBullet = null;
+  var invaders = [];
+  var invBullets = [];
+  var shieldCells = [];
+  var ufo = null;
+  var popups = [];
+  var sparks = [];
+  var keys = {};
+  var btnState = { left: false, right: false, fire: false };
+  var deckTouches = new Map();
+  var canvasTouches = new Map();
+  var mouseDown = false;
+  var mouseBtn = null;
+  var stats = { invShots: 0 };
+
+  try {
+    var probe = '__ldc_test__';
+    localStorage.setItem(probe, '1');
+    localStorage.removeItem(probe);
+  } catch (e) {
+    storageOk = false;
+  }
+
+  function pad(n) {
+    var s = String(Math.max(0, n | 0));
+    return s.length >= 6 ? s : ('000000').slice(s.length) + s;
+  }
+
+  function loadHi() {
+    if (!storageOk) return 0;
+    try {
+      var n = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+      return isFinite(n) ? n : 0;
+    } catch (e) { return 0; }
+  }
+
+  function saveHi() {
+    if (!storageOk) return;
+    try { localStorage.setItem(HS_KEY, String(hiScore)); } catch (e) {}
+  }
+
+  function text(str, x, y, align, font, color) {
+    ctx.fillStyle = color || COLOR;
+    ctx.font = font || ('16px ' + FONT);
+    ctx.textAlign = align || 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(str, x, y);
+  }
+
+  function drawSprite(rows, x, y, scale, color) {
+    ctx.fillStyle = color;
+    var ox = Math.round(x);
+    var oy = Math.round(y);
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r];
+      for (var c = 0; c < row.length; c++) {
+        if (row.charAt(c) === '#') ctx.fillRect(ox + c * scale, oy + r * scale, scale, scale);
+      }
+    }
+  }
+
+  function rectsOverlap(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function playerHitbox() {
+    return { x: player.x + 4, y: player.y + 2, w: player.w - 8, h: player.h - 4 };
+  }
+
+  function aliveCount() {
+    var n = 0;
+    for (var i = 0; i < invaders.length; i++) if (invaders[i].alive) n++;
+    return n;
+  }
+
+  function anyDying() {
+    for (var i = 0; i < invaders.length; i++) if (invaders[i].dying > 0) return true;
+    return false;
+  }
+
+  function stepDelay() {
+    var n = aliveCount();
+    if (n <= 0) return 1;
+    var t = n / (ROWS * COLS);
+    var base = 0.05 + Math.pow(t, 1.55) * 0.9;
+    var waveFactor = Math.max(0.62, 1 - (wave - 1) * 0.07);
+    return Math.max(0.046, base * waveFactor);
+  }
+
+  function burst(x, y, n, color) {
+    for (var i = 0; i < n; i++) {
+      sparks.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * 90,
+        vy: (Math.random() - 0.5) * 90,
+        life: 0.18 + Math.random() * 0.16,
+        color: color || COLOR
+      });
+    }
+    if (sparks.length > 100) sparks.splice(0, sparks.length - 100);
+  }
+
+  function addPopup(str, x, y) {
+    popups.push({ text: str, x: x, y: y, life: 0.6, max: 0.6 });
+    if (popups.length > 10) popups.shift();
+  }
+
+  function addScore(pts) {
+    score += pts;
+    if (score > hiScore) {
+      hiScore = score;
+      saveHi();
+    }
+    if (!bonusGiven && score >= 1500) {
+      bonusGiven = true;
+      if (lives < 6) {
+        lives += 1;
+        sfxExtra();
+        addPopup('1UP', W / 2, 80);
+      }
+    }
+  }
+
+  function buildShields() {
+    shieldCells = [];
+    var cell = 4;
+    var cols = SHIELD_PAT[0].length;
+    var sw = cols * cell;
+    for (var s = 0; s < 4; s++) {
+      var left = Math.round((s + 0.5) * (W / 4) - sw / 2);
+      for (var r = 0; r < SHIELD_PAT.length; r++) {
+        for (var c = 0; c < cols; c++) {
+          if (SHIELD_PAT[r].charAt(c) !== 'X') continue;
+          shieldCells.push({
+            x: left + c * cell,
+            y: SHIELD_Y + r * cell,
+            w: cell,
+            h: cell,
+            alive: true
+          });
+        }
+      }
+    }
+  }
+
+  function spawnInvaders(yOffset) {
+    var maxOffset = Math.max(0, SHIELD_Y - BASE_Y - FORM_H - 48);
+    var off = Math.max(0, Math.min(yOffset || 0, maxOffset));
+    var startX = Math.floor((W - FORM_W) / 2);
+    var startY = BASE_Y + off;
+    invaders = [];
+    for (var r = 0; r < ROWS; r++) {
+      for (var c = 0; c < COLS; c++) {
+        invaders.push({
+          c: c, r: r,
+          x: startX + c * (SPR_W + GAP_X),
+          y: startY + r * (SPR_H + GAP_Y),
+          w: SPR_W, h: SPR_H,
+          alive: true,
+          dying: 0
+        });
+      }
+    }
+    dir = 1;
+    frame = 0;
+    marchAcc = Math.max(0, stepDelay() - 0.32);
+    marchHold = 0;
+  }
+
+  function damageShields(rect, splash) {
+    var hit = [];
+    for (var i = 0; i < shieldCells.length; i++) {
+      var cell = shieldCells[i];
+      if (cell.alive && rectsOverlap(rect, cell)) hit.push(cell);
+    }
+    if (!hit.length) return false;
+    var kill = [];
+    for (var h = 0; h < hit.length; h++) kill.push(hit[h]);
+    if (splash > 0) {
+      for (var s = 0; s < hit.length; s++) {
+        var cx = hit[s].x + hit[s].w / 2;
+        var cy = hit[s].y + hit[s].h / 2;
+        for (var j = 0; j < shieldCells.length; j++) {
+          var other = shieldCells[j];
+          if (!other.alive) continue;
+          if (Math.abs(other.x + other.w / 2 - cx) <= splash && Math.abs(other.y + other.h / 2 - cy) <= splash) {
+            kill.push(other);
+          }
+        }
+      }
+    }
+    for (var k = 0; k < kill.length; k++) kill[k].alive = false;
+    burst(rect.x + rect.w / 2, rect.y + rect.h / 2, 4);
+    return true;
+  }
+
+  function startGame(force) {
+    var now = performance.now();
+    if (!force && state === 'playing' && now - lastStart < 450) return;
+    lastStart = now;
+    score = 0;
+    lives = 3;
+    wave = 1;
+    bonusGiven = false;
+    playerShots = 0;
+    overReason = '';
+    player.x = (W - player.w) / 2;
+    playerBullet = null;
+    invBullets = [];
+    popups = [];
+    sparks = [];
+    ufo = null;
+    stopUfoSound();
+    ufoTimer = 6 + Math.random() * 5;
+    freezeT = 0;
+    invulnT = 0;
+    pendingRespawn = false;
+    fireAcc = 1.15;
+    stats.invShots = 0;
+    buildShields();
+    spawnInvaders(0);
+    state = 'playing';
+    syncChrome();
+  }
+
+  function togglePause() {
+    if (state === 'playing') state = 'paused';
+    else if (state === 'paused') state = 'playing';
+    if (state !== 'playing') stopUfoSound();
+    syncChrome();
+  }
+
+  function gameOver(reason) {
+    if (state === 'gameover') return;
+    overReason = reason || 'lives';
+    state = 'gameover';
+    stopUfoSound();
+    sfxGameOver();
+    if (score > hiScore) {
+      hiScore = score;
+      saveHi();
+    }
+    syncChrome();
+  }
+
+  function killPlayer() {
+    if (invulnT > 0 || state !== 'playing') return;
+    lives -= 1;
+    sfxPlayerHit();
+    burst(player.x + player.w / 2, player.y + 4, 16, BRIGHT);
+    playerBullet = null;
+    invBullets.length = 0;
+    if (lives <= 0) {
+      lives = 0;
+      gameOver('lives');
+      return;
+    }
+    freezeT = 1.05;
+    pendingRespawn = true;
+  }
+
+  function killInvader(inv) {
+    inv.alive = false;
+    inv.dying = 0.28;
+    addScore(ROW_PTS[inv.r]);
+    addPopup(String(ROW_PTS[inv.r]), inv.x + inv.w / 2, inv.y);
+    burst(inv.x + inv.w / 2, inv.y + inv.h / 2, 8);
+    sfxInvaderKill();
+    marchHold = 0.1;
+  }
+
+  function hitUfo() {
+    var pts = UFO_SCORES[playerShots % UFO_SCORES.length];
+    ufo.alive = false;
+    ufo.points = pts;
+    ufo.scoreLeft = 0.95;
+    ufo.vx = 0;
+    playerBullet = null;
+    addScore(pts);
+    stopUfoSound();
+    sfxUfoHit();
+    burst(ufo.x + ufo.w / 2, ufo.y + ufo.h / 2, 12, BRIGHT);
+  }
+
+  function spawnUfo() {
+    var fromLeft = Math.random() < 0.5;
+    ufo = {
+      x: fromLeft ? -40 : W + 6,
+      y: 66,
+      w: SAUCER[0].length * PX,
+      h: SAUCER.length * PX,
+      vx: fromLeft ? 90 : -90,
+      alive: true,
+      points: 0,
+      scoreLeft: 0
+    };
+    ufoTimer = 11 + Math.random() * 8;
+  }
+
+  function tryFire() {
+    if (playerBullet || freezeT > 0 || state !== 'playing') return;
+    var want = btnState.fire || keys.Space || autoFire;
+    if (!want) return;
+    playerBullet = {
+      x: player.x + player.w / 2 - 1,
+      y: player.y - 10,
+      w: 3,
+      h: 10
+    };
+    playerShots += 1;
+    sfxPlayerShot();
+  }
+
+  function tickDying(dt) {
+    for (var i = 0; i < invaders.length; i++) {
+      if (invaders[i].dying > 0) invaders[i].dying -= dt;
+    }
+  }
+
+  function marchOnce() {
+    var minX = Infinity, maxX = -Infinity, any = false;
+    for (var i = 0; i < invaders.length; i++) {
+      var inv = invaders[i];
+      if (!inv.alive) continue;
+      any = true;
+      if (inv.x < minX) minX = inv.x;
+      if (inv.x + inv.w > maxX) maxX = inv.x + inv.w;
+    }
+    if (!any) return;
+    var step = dir * STEP_X;
+    var hitLeft = dir < 0 && (minX + step < MARGIN);
+    var hitRight = dir > 0 && (maxX + step > W - MARGIN);
+    if (hitLeft || hitRight) {
+      dir *= -1;
+      for (var d = 0; d < invaders.length; d++) {
+        if (invaders[d].alive) invaders[d].y += STEP_Y;
+      }
+    } else {
+      for (var m = 0; m < invaders.length; m++) {
+        if (invaders[m].alive) invaders[m].x += step;
+      }
+    }
+    frame ^= 1;
+    sfxMarch();
+  }
+
+  function updateMarch(dt) {
+    if (marchHold > 0) {
+      marchHold -= dt;
+      return;
+    }
+    if (!aliveCount()) return;
+    marchAcc += dt;
+    var guard = 0;
+    while (marchAcc >= stepDelay() && guard < 4) {
+      marchAcc -= stepDelay();
+      marchOnce();
+      guard++;
+    }
+  }
+
+  function pickShooter() {
+    var options = [];
+    for (var c = 0; c < COLS; c++) {
+      var best = null;
+      for (var i = 0; i < invaders.length; i++) {
+        var inv = invaders[i];
+        if (inv.alive && inv.c === c && (!best || inv.r > best.r)) best = inv;
+      }
+      if (best) options.push(best);
+    }
+    if (!options.length) return null;
+    if (Math.random() < 0.45) {
+      options.sort(function (a, b) {
+        return Math.abs((a.x + a.w / 2) - (player.x + player.w / 2)) - Math.abs((b.x + b.w / 2) - (player.x + player.w / 2));
+      });
+      return options[0];
+    }
+    return options[(Math.random() * options.length) | 0];
+  }
+
+  function updateInvaderFire(dt) {
+    var alive = aliveCount();
+    if (!alive) return;
+    fireAcc -= dt;
+    if (fireAcc > 0) return;
+    if (invBullets.length >= 3) {
+      fireAcc = 0.12;
+      return;
+    }
+    var shooter = pickShooter();
+    if (!shooter) return;
+    invBullets.push({
+      baseX: shooter.x + shooter.w / 2 - 2,
+      x: shooter.x + shooter.w / 2 - 2,
+      y: shooter.y + shooter.h - 2,
+      w: 4,
+      h: 8,
+      age: Math.random() * 2
+    });
+    stats.invShots += 1;
+    sfxInvaderShot();
+    var tempo = 0.42 + 0.85 * (alive / (ROWS * COLS));
+    fireAcc = tempo * (0.55 + Math.random() * 0.8);
+  }
+
+  function updatePlayerBullet(dt) {
+    if (!playerBullet) return;
+    var b = playerBullet;
+    var dist = SHOT_SPEED * dt;
+    while (dist > 0 && playerBullet) {
+      var step = Math.min(3, dist);
+      b.y -= step;
+      dist -= step;
+      if (b.y + b.h < 58) {
+        playerBullet = null;
+        return;
+      }
+      if (ufo && ufo.alive && rectsOverlap(b, ufo)) {
+        hitUfo();
+        return;
+      }
+      for (var i = 0; i < invaders.length; i++) {
+        var inv = invaders[i];
+        if (!inv.alive) continue;
+        if (rectsOverlap(b, inv)) {
+          killInvader(inv);
+          playerBullet = null;
+          return;
+        }
+      }
+      for (var j = invBullets.length - 1; j >= 0; j--) {
+        if (rectsOverlap(b, invBullets[j])) {
+          burst(b.x, b.y, 6, BRIGHT);
+          invBullets.splice(j, 1);
+          playerBullet = null;
+          sfxDeflect();
+          return;
+        }
+      }
+      if (damageShields(b, 5)) {
+        playerBullet = null;
+        return;
+      }
+    }
+  }
+
+  function updateInvBullets(dt) {
+    var speed = INV_SHOT_SPEED + (wave - 1) * 16;
+    for (var i = invBullets.length - 1; i >= 0; i--) {
+      var b = invBullets[i];
+      var dist = speed * dt;
+      var remove = false;
+      while (dist > 0 && !remove) {
+        var step = Math.min(3, dist);
+        b.y += step;
+        dist -= step;
+        b.age += step / Math.max(40, speed);
+        b.x = b.baseX + ((Math.floor(b.age * 10) % 2 === 0) ? -3 : 3);
+        if (b.y > GROUND_Y - 2) {
+          burst(b.x + 2, GROUND_Y, 3);
+          remove = true;
+          break;
+        }
+        if (damageShields(b, 0)) {
+          remove = true;
+          break;
+        }
+        if (invulnT <= 0 && rectsOverlap(b, playerHitbox())) {
+          killPlayer();
+          return;
+        }
+      }
+      if (remove) invBullets.splice(i, 1);
+    }
+  }
+
+  function updateUfo(dt) {
+    if (ufo) {
+      if (ufo.alive) {
+        ufo.x += ufo.vx * dt;
+        if ((ufo.vx > 0 && ufo.x > W + 8) || (ufo.vx < 0 && ufo.x + ufo.w < -8)) {
+          ufo = null;
+          stopUfoSound();
+        }
+      } else {
+        ufo.scoreLeft -= dt;
+        if (ufo.scoreLeft <= 0) ufo = null;
+      }
+      return;
+    }
+    ufoTimer -= dt;
+    if (ufoTimer <= 0) spawnUfo();
+  }
+
+  function invadersLanded() {
+    var line = player.y - 2;
+    for (var i = 0; i < invaders.length; i++) {
+      var inv = invaders[i];
+      if (inv.alive && inv.y + inv.h >= line) return true;
+    }
+    return false;
+  }
+
+  function beginWaveClear() {
+    state = 'wave';
+    waveTimer = 0.75;
+    sfxWaveClear();
+    syncChrome();
+  }
+
+  function updateWave(dt) {
+    waveTimer -= dt;
+    tickDying(dt);
+    if (ufo && ufo.alive) {
+      ufo.x += ufo.vx * dt;
+      if ((ufo.vx > 0 && ufo.x > W + 8) || (ufo.vx < 0 && ufo.x + ufo.w < -8)) {
+        ufo = null;
+        stopUfoSound();
+      }
+    } else if (ufo && !ufo.alive) {
+      ufo.scoreLeft -= dt;
+      if (ufo.scoreLeft <= 0) ufo = null;
+    }
+    if (waveTimer > 0) return;
+    wave += 1;
+    spawnInvaders((wave - 1) * 18);
+    playerBullet = null;
+    invBullets = [];
+    freezeT = 0.3;
+    pendingRespawn = false;
+    fireAcc = 0.7;
+    state = 'playing';
+    syncChrome();
+  }
+
+  function canvasDirs() {
+    var rect = canvas.getBoundingClientRect();
+    var left = false, right = false;
+    if (rect.width < 2) return { left: false, right: false };
+    var now = performance.now();
+    canvasTouches.forEach(function (p) {
+      if (now - p.t < 90) return;
+      var local = p.x - rect.left;
+      if (local < rect.width * 0.5) left = true;
+      else right = true;
+    });
+    return { left: left, right: right };
+  }
+
+  function currentAxis() {
+    var touch = canvasDirs();
+    var left = !!(keys.ArrowLeft || keys.KeyA || btnState.left || touch.left);
+    var right = !!(keys.ArrowRight || keys.KeyD || btnState.right || touch.right);
+    if (left && right) return prefer;
+    if (left) return -1;
+    if (right) return 1;
+    return 0;
+  }
+
+  function update(dt) {
+    if (freezeT > 0) {
+      freezeT -= dt;
+      tickDying(dt);
+      if (freezeT > 0) return;
+      if (pendingRespawn) {
+        pendingRespawn = false;
+        player.x = (W - player.w) / 2;
+        invulnT = 1.55;
+        invBullets = [];
+        playerBullet = null;
+      }
+    }
+    if (invulnT > 0) invulnT -= dt;
+
+    player.x += currentAxis() * PLAYER_SPEED * dt;
+    if (player.x < MARGIN) player.x = MARGIN;
+    if (player.x > W - MARGIN - player.w) player.x = W - MARGIN - player.w;
+
+    tryFire();
+    updatePlayerBullet(dt);
+    if (state !== 'playing') return;
+    tickDying(dt);
+    updateMarch(dt);
+    if (state !== 'playing') return;
+    if (invadersLanded()) {
+      gameOver('landed');
+      return;
+    }
+    updateInvaderFire(dt);
+    updateInvBullets(dt);
+    if (state !== 'playing') return;
+    updateUfo(dt);
+    if (!aliveCount() && !anyDying() && invaders.length) beginWaveClear();
+  }
+
+  function updateSparks(dt) {
+    for (var i = sparks.length - 1; i >= 0; i--) {
+      var s = sparks[i];
+      s.life -= dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      if (s.life <= 0) sparks.splice(i, 1);
+    }
+  }
+
+  function updatePopups(dt) {
+    for (var i = popups.length - 1; i >= 0; i--) {
+      popups[i].life -= dt;
+      popups[i].y -= 16 * dt;
+      if (popups[i].life <= 0) popups.splice(i, 1);
+    }
+  }
+
+  function lowestBottom() {
+    var y = 0;
+    for (var i = 0; i < invaders.length; i++) {
+      if (invaders[i].alive) y = Math.max(y, invaders[i].y + invaders[i].h);
+    }
+    return y;
+  }
+
+  function drawHud() {
+    text('SCORE ' + pad(score), 12, 24, 'left', '16px ' + FONT, COLOR);
+    text('HI ' + pad(hiScore), W - 12, 24, 'right', '16px ' + FONT, COLOR);
+    text('LIVES ' + lives, 12, 48, 'left', '15px ' + FONT, COLOR);
+    var lx = 108;
+    var shown = Math.min(lives, 6);
+    for (var i = 0; i < shown; i++) {
+      drawSprite(PLAYER_SPRITE, lx, 34, 1, COLOR);
+      lx += 14;
+    }
+    text('WAVE ' + wave, W - 12, 48, 'right', '15px ' + FONT, COLOR);
+    ctx.fillStyle = DIM;
+    ctx.fillRect(10, 56, W - 20, 2);
+  }
+
+  function drawPlayfield() {
+    drawHud();
+    if (ufo) {
+      if (ufo.alive) drawSprite(SAUCER, ufo.x, ufo.y, PX, BRIGHT);
+      else text(String(ufo.points), ufo.x + ufo.w / 2, ufo.y + 14, 'center', 'bold 18px ' + FONT, BRIGHT);
+    }
+    for (var i = 0; i < invaders.length; i++) {
+      var inv = invaders[i];
+      if (inv.dying > 0) drawSprite(EXPLODE, inv.x, inv.y, PX, BRIGHT);
+      else if (inv.alive) drawSprite(SPRITES[ROW_KIND[inv.r]][frame], inv.x, inv.y, PX, COLOR);
+    }
+    ctx.fillStyle = COLOR;
+    for (var s = 0; s < shieldCells.length; s++) {
+      var cell = shieldCells[s];
+      if (!cell.alive) continue;
+      ctx.fillRect(cell.x, cell.y, cell.w, cell.h);
+    }
+    for (var k = 0; k < sparks.length; k++) {
+      var sp = sparks[k];
+      ctx.globalAlpha = Math.max(0, sp.life * 4);
+      ctx.fillStyle = sp.color;
+      ctx.fillRect(Math.round(sp.x), Math.round(sp.y), 3, 3);
+    }
+    ctx.globalAlpha = 1;
+    if (playerBullet) {
+      ctx.fillStyle = BRIGHT;
+      ctx.fillRect(Math.round(playerBullet.x), Math.round(playerBullet.y), playerBullet.w, playerBullet.h);
+    }
+    for (var b = 0; b < invBullets.length; b++) {
+      var shot = invBullets[b];
+      var x = Math.round(shot.x);
+      var y = Math.round(shot.y);
+      ctx.fillStyle = COLOR;
+      ctx.fillRect(x + 1, y, 2, 2);
+      ctx.fillRect(x, y + 2, 2, 2);
+      ctx.fillRect(x + 2, y + 4, 2, 2);
+      ctx.fillRect(x + 1, y + 6, 2, 2);
+    }
+    var showPlayer = state !== 'gameover' && !(pendingRespawn && freezeT > 0);
+    if (showPlayer && !(invulnT > 0 && Math.floor(invulnT * 14) % 2 === 0)) {
+      drawSprite(PLAYER_SPRITE, player.x, player.y, PX, COLOR);
+    } else if (pendingRespawn && freezeT > 0) {
+      drawSprite(EXPLODE, player.x, player.y, PX, BRIGHT);
+    }
+    var danger = lowestBottom() > SHIELD_Y + 8;
+    ctx.fillStyle = danger ? BRIGHT : DIM;
+    ctx.fillRect(16, GROUND_Y, W - 32, 3);
+    for (var p = 0; p < popups.length; p++) {
+      var pop = popups[p];
+      ctx.globalAlpha = Math.max(0, pop.life / pop.max);
+      text(pop.text, pop.x, pop.y, 'center', 'bold 14px ' + FONT, BRIGHT);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawTitle() {
+    var demo = Math.floor(performance.now() / 420) % 2;
+    var deck = document.body.classList.contains('show-deck');
+    text('HI ' + pad(hiScore), W / 2, 36, 'center', '15px ' + FONT, COLOR);
+    text('LANE DEFENSE', W / 2, 92, 'center', 'bold 32px ' + FONT, BRIGHT);
+    text('CLASSIC', W / 2, 126, 'center', 'bold 22px ' + FONT, COLOR);
+    text(BUILD_VERSION, W / 2, 150, 'center', '16px ' + FONT, COLOR);
+
+    var samples = [
+      { rows: SPRITES.top[demo], pts: '30', w: SPR_W },
+      { rows: SPRITES.mid[demo], pts: '20', w: SPR_W },
+      { rows: SPRITES.bot[demo], pts: '10', w: SPR_W },
+      { rows: SAUCER, pts: '???', w: SAUCER[0].length * PX }
+    ];
+    var gap = 28;
+    var total = 0;
+    for (var i = 0; i < samples.length; i++) total += samples[i].w;
+    total += gap * (samples.length - 1);
+    var x = (W - total) / 2;
+    for (var n = 0; n < samples.length; n++) {
+      var sample = samples[n];
+      drawSprite(sample.rows, x, 196, PX, n === 3 ? BRIGHT : COLOR);
+      text(sample.pts, x + sample.w / 2, 250, 'center', '16px ' + FONT, COLOR);
+      x += sample.w + gap;
+    }
+    text('SHOOT THE SAUCER FOR A BONUS', W / 2, 292, 'center', '13px ' + FONT, DIM);
+
+    if (deck) {
+      text('LEFT AND RIGHT MOVE THE CANNON', W / 2, 360, 'center', '14px ' + FONT, COLOR);
+      text('FIRE SHOOTS — HOLD TO REPEAT', W / 2, 386, 'center', '14px ' + FONT, COLOR);
+      text('OR DRAG ON THE PLAYFIELD', W / 2, 412, 'center', '14px ' + FONT, COLOR);
+      text(autoFire ? 'AUTO-FIRE IS ON' : 'AUTO-FIRE IS OFF', W / 2, 450, 'center', 'bold 16px ' + FONT, BRIGHT);
+    } else {
+      text('ARROWS OR A / D TO MOVE', W / 2, 360, 'center', '15px ' + FONT, COLOR);
+      text('SPACE TO FIRE — HOLD TO REPEAT', W / 2, 388, 'center', '15px ' + FONT, COLOR);
+      text('P PAUSE    M MUTE    R RESTART', W / 2, 416, 'center', '14px ' + FONT, COLOR);
+      text(autoFire ? 'AUTO-FIRE IS ON' : 'AUTO-FIRE IS OFF', W / 2, 450, 'center', '14px ' + FONT, DIM);
+    }
+
+    if (Math.floor(performance.now() / 500) % 2 === 0) {
+      text(deck ? 'TAP TO START' : 'PRESS SPACE OR TAP', W / 2, 520, 'center', 'bold 18px ' + FONT, BRIGHT);
+    }
+    text('3 LIVES  ·  BONUS LIFE AT 1500', W / 2, 568, 'center', '13px ' + FONT, DIM);
+    text(BUILD_VERSION, W - 14, H - 16, 'right', '13px ' + FONT, COLOR);
+  }
+
+  function drawOverlay() {
+    if (state === 'paused') {
+      ctx.fillStyle = 'rgba(0,0,0,0.62)';
+      ctx.fillRect(0, 0, W, H);
+      text('PAUSED', W / 2, H / 2 - 8, 'center', 'bold 28px ' + FONT, BRIGHT);
+      text(document.body.classList.contains('show-deck') ? 'TAP PLAY OR THE FIELD' : 'P TO RESUME', W / 2, H / 2 + 28, 'center', '15px ' + FONT, COLOR);
+    }
+    if (state === 'wave') {
+      text('READY', W / 2, H / 2, 'center', 'bold 28px ' + FONT, BRIGHT);
+    }
+    if (state === 'gameover') {
+      ctx.fillStyle = 'rgba(0,0,0,0.66)';
+      ctx.fillRect(0, 0, W, H);
+      text('GAME OVER', W / 2, H * 0.38, 'center', 'bold 32px ' + FONT, BRIGHT);
+      if (overReason === 'landed') {
+        text('THEY REACHED THE LINE', W / 2, H * 0.38 + 32, 'center', '14px ' + FONT, COLOR);
+      }
+      text('SCORE ' + pad(score), W / 2, H * 0.5, 'center', '20px ' + FONT, COLOR);
+      text('HI ' + pad(hiScore), W / 2, H * 0.5 + 28, 'center', '16px ' + FONT, DIM);
+      if (Math.floor(performance.now() / 500) % 2 === 0) {
+        text(document.body.classList.contains('show-deck') ? 'TAP TO PLAY AGAIN' : 'SPACE TO PLAY AGAIN', W / 2, H * 0.64, 'center', '16px ' + FONT, BRIGHT);
+      }
+    }
+  }
+
+  function draw() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    if (state === 'start') {
+      drawTitle();
+      return;
+    }
+    drawPlayfield();
+    drawOverlay();
+  }
+
+  var audioCtx = null;
+  var audioNeedsUnlock = true;
+  var ufoSnd = null;
+  var ufoFlip = 0;
+  var silentUnlockEl = document.getElementById('silent-unlock');
+
+  function setAudioSessionPlayback() {
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback';
+    } catch (e) { /* ignore */ }
+  }
+
+  function playSilentHtmlAudio() {
+    if (!silentUnlockEl) return;
+    try {
+      silentUnlockEl.volume = 0.0001;
+      var p = silentUnlockEl.play();
+      if (p && typeof p.catch === 'function') p.catch(function () {});
+    } catch (e) { /* ignore */ }
+  }
+
+  function playSilentBufferSync() {
+    if (!audioCtx) return;
+    try {
+      var buf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+      var src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      src.start(0);
+      src.stop(0);
+    } catch (e) { /* ignore */ }
+  }
+
+  function audioCtxNeedsResume() {
+    if (!audioCtx) return true;
+    var s = audioCtx.state;
+    return s === 'suspended' || s === 'interrupted';
+  }
+
+  function unlockAudioSync() {
+    setAudioSessionPlayback();
+    playSilentHtmlAudio();
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      playSilentBufferSync();
+      if (audioCtxNeedsResume()) audioCtx.resume();
+    } catch (e) { /* ignore */ }
+    audioNeedsUnlock = !audioCtx || audioCtx.state !== 'running';
+  }
+
+  function unlockAudioFromGesture() {
+    unlockAudioSync();
+    if (audioCtx && audioCtxNeedsResume()) {
+      audioCtx.resume().then(function () {
+        audioNeedsUnlock = audioCtx.state !== 'running';
+      }).catch(function () {
+        audioNeedsUnlock = true;
+      });
+    } else if (audioCtx && audioCtx.state === 'running') {
+      audioNeedsUnlock = false;
+    }
+  }
+
+  function markAudioNeedsUnlockOnReturn() {
+    if (!audioCtx) {
+      audioNeedsUnlock = true;
+      return;
+    }
+    if (audioCtxNeedsResume()) audioNeedsUnlock = true;
+  }
+
+  ['touchend', 'pointerup', 'click'].forEach(function (ev) {
+    window.addEventListener(ev, unlockAudioFromGesture, { passive: true, capture: true });
+  });
+  window.addEventListener('keydown', unlockAudioFromGesture, { passive: true });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') markAudioNeedsUnlockOnReturn();
+    if (document.hidden) {
+      clearInputs();
+      stopUfoSound();
+      if (state === 'playing') {
+        state = 'paused';
+        syncChrome();
+      }
+    }
+  });
+  window.addEventListener('pageshow', markAudioNeedsUnlockOnReturn);
+  window.addEventListener('focus', markAudioNeedsUnlockOnReturn);
+
+  function ensureAudio() {
+    unlockAudioSync();
+    if (!audioCtx) return;
+    if (audioCtx.state === 'running') {
+      audioNeedsUnlock = false;
+      return;
+    }
+    if (audioCtxNeedsResume()) {
+      audioCtx.resume().then(function () {
+        audioNeedsUnlock = audioCtx.state !== 'running';
+      }).catch(function () {});
+    }
+  }
+
+  function sfxBlocked() {
+    return muted || !audioCtx || audioCtx.state !== 'running';
+  }
+
+  function envGain(freq, dur, type, peak, delay) {
+    if (sfxBlocked()) return;
+    var t = audioCtx.currentTime + (delay || 0);
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.type = type || 'square';
+    o.frequency.setValueAtTime(Math.max(1, freq), t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+
+  function sfxPlayerShot() {
+    if (sfxBlocked()) return;
+    var t = audioCtx.currentTime;
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(880, t);
+    o.frequency.exponentialRampToValueAtTime(180, t + 0.09);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.05, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t + 0.11);
+  }
+
+  function sfxMarch() {
+    var f = MARCH[marchStepIdx & 3];
+    marchStepIdx++;
+    var dur = Math.min(0.08, Math.max(0.028, stepDelay() * 0.5));
+    envGain(f, dur, 'square', 0.055, 0);
+  }
+
+  function noiseBurst(dur, peak, hp) {
+    if (sfxBlocked()) return;
+    var sr = audioCtx.sampleRate;
+    var len = Math.max(1, Math.floor(sr * dur));
+    var buf = audioCtx.createBuffer(1, len, sr);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    var src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    var filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = hp || 900;
+    var g = audioCtx.createGain();
+    g.gain.value = peak;
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(audioCtx.destination);
+    src.start();
+  }
+
+  function sfxInvaderKill() {
+    noiseBurst(0.12, 0.18, 600);
+    envGain(220, 0.09, 'square', 0.04, 0);
+  }
+
+  function sfxInvaderShot() {
+    envGain(196, 0.07, 'square', 0.03, 0);
+  }
+
+  function sfxDeflect() {
+    envGain(520, 0.05, 'square', 0.03, 0);
+  }
+
+  function sfxPlayerHit() {
+    noiseBurst(0.45, 0.22, 200);
+    if (sfxBlocked()) return;
+    var t = audioCtx.currentTime;
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.45);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.06, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.48);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t + 0.5);
+  }
+
+  function sfxUfoHit() {
+    envGain(523, 0.1, 'square', 0.05, 0);
+    envGain(659, 0.12, 'square', 0.05, 0.08);
+    envGain(784, 0.16, 'square', 0.05, 0.16);
+  }
+
+  function sfxExtra() {
+    envGain(880, 0.08, 'square', 0.045, 0);
+    envGain(1175, 0.12, 'square', 0.045, 0.09);
+  }
+
+  function sfxWaveClear() {
+    var notes = [392, 523, 659, 784];
+    for (var i = 0; i < notes.length; i++) envGain(notes[i], 0.1, 'square', 0.04, i * 0.08);
+  }
+
+  function sfxGameOver() {
+    if (sfxBlocked()) return;
+    var t = audioCtx.currentTime;
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(220, t);
+    o.frequency.exponentialRampToValueAtTime(46, t + 0.7);
+    g.gain.setValueAtTime(0.05, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.75);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t + 0.78);
+  }
+
+  function startUfoSound() {
+    if (ufoSnd || sfxBlocked()) return;
+    try {
+      var o = audioCtx.createOscillator();
+      var g = audioCtx.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(340, audioCtx.currentTime);
+      g.gain.setValueAtTime(0.03, audioCtx.currentTime);
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.start();
+      ufoSnd = { o: o, g: g, hi: false };
+      ufoFlip = 0;
+    } catch (e) { ufoSnd = null; }
+  }
+
+  function stopUfoSound() {
+    if (!ufoSnd) return;
+    var o = ufoSnd.o;
+    var g = ufoSnd.g;
+    ufoSnd = null;
+    try {
+      var t = audioCtx.currentTime;
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+      o.stop(t + 0.04);
+    } catch (e) {
+      try { o.stop(); } catch (e2) {}
+    }
+  }
+
+  function updateUfoSound(dt) {
+    var flying = ufo && ufo.alive && (state === 'playing' || state === 'wave') && !muted;
+    if (!flying) {
+      stopUfoSound();
+      return;
+    }
+    if (!ufoSnd) startUfoSound();
+    if (!ufoSnd) return;
+    ufoFlip += dt;
+    if (ufoFlip < 0.07) return;
+    ufoFlip = 0;
+    ufoSnd.hi = !ufoSnd.hi;
+    try {
+      ufoSnd.o.frequency.setValueAtTime(ufoSnd.hi ? 520 : 330, audioCtx.currentTime);
+    } catch (e) {}
+  }
+
+  function syncAutoBtn() {
+    var b = document.getElementById('btn-auto');
+    if (!b) return;
+    var label = autoFire ? 'AUTO ON' : 'AUTO OFF';
+    if (b.textContent !== label) b.textContent = label;
+    b.classList.toggle('on', autoFire);
+    b.setAttribute('aria-pressed', autoFire ? 'true' : 'false');
+  }
+
+  function syncChrome() {
+    var p = document.getElementById('btn-pause');
+    var want = state === 'paused' ? 'PLAY' : 'PAUSE';
+    if (p && p.textContent !== want) p.textContent = want;
+    var m = document.getElementById('btn-mute');
+    var muteLabel = muted ? 'MUTED' : 'MUTE';
+    if (m && m.textContent !== muteLabel) m.textContent = muteLabel;
+    if (m) m.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    syncAutoBtn();
+  }
+
+  function toggleMute() {
+    muted = !muted;
+    if (muted) stopUfoSound();
+    syncChrome();
+    if (!muted) {
+      envGain(660, 0.06, 'square', 0.04, 0);
+    }
+  }
+
+  function buttonAt(x, y) {
+    var ids = ['btn-left', 'btn-fire', 'btn-right'];
+    for (var i = 0; i < ids.length; i++) {
+      var el = document.getElementById(ids[i]);
+      var r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top - 8 && y <= r.bottom + 6) return el;
+    }
+    return null;
+  }
+
+  function applyDeck() {
+    var left = false, right = false, fire = false;
+    deckTouches.forEach(function (id) {
+      if (id === 'btn-left') left = true;
+      if (id === 'btn-right') right = true;
+      if (id === 'btn-fire') fire = true;
+    });
+    if (mouseBtn) {
+      if (mouseBtn.id === 'btn-left') left = true;
+      if (mouseBtn.id === 'btn-right') right = true;
+      if (mouseBtn.id === 'btn-fire') fire = true;
+    }
+    btnState.left = left;
+    btnState.right = right;
+    btnState.fire = fire;
+    document.getElementById('btn-left').classList.toggle('held', left);
+    document.getElementById('btn-right').classList.toggle('held', right);
+    document.getElementById('btn-fire').classList.toggle('held', fire);
+  }
+
+  function onDeckDown(id) {
+    if (id === 'btn-left') prefer = -1;
+    if (id === 'btn-right') prefer = 1;
+    if (state === 'start' || state === 'gameover') startGame();
+  }
+
+  var deck = document.getElementById('deck');
+  deck.addEventListener('touchstart', function (e) {
+    e.preventDefault();
+    unlockAudioFromGesture();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      var b = buttonAt(t.clientX, t.clientY);
+      deckTouches.set(t.identifier, b ? b.id : null);
+      if (b) onDeckDown(b.id);
+    }
+    applyDeck();
+  }, { passive: false });
+  deck.addEventListener('touchmove', function (e) {
+    e.preventDefault();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      if (!deckTouches.has(t.identifier)) continue;
+      var b = buttonAt(t.clientX, t.clientY);
+      var next = b ? b.id : null;
+      var prev = deckTouches.get(t.identifier);
+      deckTouches.set(t.identifier, next);
+      if (next && next !== prev) onDeckDown(next);
+    }
+    applyDeck();
+  }, { passive: false });
+  function endDeckTouch(e) {
+    for (var i = 0; i < e.changedTouches.length; i++) deckTouches.delete(e.changedTouches[i].identifier);
+    applyDeck();
+  }
+  deck.addEventListener('touchend', endDeckTouch, { passive: false });
+  deck.addEventListener('touchcancel', endDeckTouch, { passive: false });
+  deck.addEventListener('mousedown', function (e) {
+    e.preventDefault();
+    mouseDown = true;
+    unlockAudioFromGesture();
+    mouseBtn = buttonAt(e.clientX, e.clientY);
+    if (mouseBtn) onDeckDown(mouseBtn.id);
+    applyDeck();
+  });
+  window.addEventListener('mousemove', function (e) {
+    if (!mouseDown) return;
+    mouseBtn = buttonAt(e.clientX, e.clientY);
+    applyDeck();
+  });
+  window.addEventListener('mouseup', function () {
+    if (!mouseDown) return;
+    mouseDown = false;
+    mouseBtn = null;
+    applyDeck();
+  });
+
+  canvas.addEventListener('touchstart', function (e) {
+    e.preventDefault();
+    unlockAudioFromGesture();
+    if (state === 'start' || state === 'gameover') startGame();
+    else if (state === 'paused') {
+      togglePause();
+      return;
+    }
+    if (state !== 'playing') return;
+    var now = performance.now();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      var rect = canvas.getBoundingClientRect();
+      var side = (t.clientX - rect.left) < rect.width * 0.5 ? -1 : 1;
+      prefer = side;
+      canvasTouches.set(t.identifier, { x: t.clientX, y: t.clientY, t: now });
+    }
+  }, { passive: false });
+  canvas.addEventListener('touchmove', function (e) {
+    e.preventDefault();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      var prev = canvasTouches.get(t.identifier);
+      if (!prev) continue;
+      prev.x = t.clientX;
+      prev.y = t.clientY;
+      var rect = canvas.getBoundingClientRect();
+      prefer = (t.clientX - rect.left) < rect.width * 0.5 ? -1 : 1;
+    }
+  }, { passive: false });
+  function endCanvasTouch(e) {
+    for (var i = 0; i < e.changedTouches.length; i++) canvasTouches.delete(e.changedTouches[i].identifier);
+  }
+  canvas.addEventListener('touchend', endCanvasTouch, { passive: false });
+  canvas.addEventListener('touchcancel', endCanvasTouch, { passive: false });
+  canvas.addEventListener('mousedown', function () {
+    unlockAudioFromGesture();
+    if (state === 'start' || state === 'gameover') startGame();
+    else if (state === 'paused') togglePause();
+  });
+
+  document.addEventListener('touchmove', function (e) {
+    if (e.target && e.target.closest && e.target.closest('#topbar')) return;
+    e.preventDefault();
+  }, { passive: false });
+
+  var BLOCK_KEYS = { Space: 1, ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, ArrowDown: 1 };
+  window.addEventListener('keydown', function (e) {
+    if (BLOCK_KEYS[e.code]) e.preventDefault();
+    var was = !!keys[e.code];
+    keys[e.code] = true;
+    if (!was && (e.code === 'ArrowLeft' || e.code === 'KeyA')) prefer = -1;
+    if (!was && (e.code === 'ArrowRight' || e.code === 'KeyD')) prefer = 1;
+    if (e.code === 'KeyP') {
+      e.preventDefault();
+      if (state === 'playing' || state === 'paused') togglePause();
+    }
+    if (e.code === 'KeyM') {
+      e.preventDefault();
+      ensureAudio();
+      toggleMute();
+    }
+    if (e.code === 'KeyR') {
+      e.preventDefault();
+      if (state !== 'start') startGame();
+    }
+    if ((e.code === 'Enter' || e.code === 'Space') && (state === 'start' || state === 'gameover')) {
+      e.preventDefault();
+      startGame();
+    }
+  });
+  window.addEventListener('keyup', function (e) { keys[e.code] = false; });
+
+  document.getElementById('btn-mute').addEventListener('click', function (e) {
+    e.preventDefault();
+    ensureAudio();
+    toggleMute();
+  });
+  document.getElementById('btn-auto').addEventListener('click', function (e) {
+    e.preventDefault();
+    ensureAudio();
+    autoFire = !autoFire;
+    syncAutoBtn();
+  });
+  document.getElementById('btn-pause').addEventListener('click', function (e) {
+    e.preventDefault();
+    ensureAudio();
+    if (state === 'playing' || state === 'paused') togglePause();
+  });
+
+  function clearInputs() {
+    keys = {};
+    deckTouches.clear();
+    canvasTouches.clear();
+    mouseDown = false;
+    mouseBtn = null;
+    applyDeck();
+  }
+  window.addEventListener('blur', clearInputs);
+
+  function wantsDeck() {
+    var coarse = false;
+    try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch (e) {}
+    var touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    return coarse || (touch && window.innerWidth < 1100) || window.innerWidth <= 760;
+  }
+
+  function resize() {
+    var wrap = document.getElementById('wrap');
+    var scale = Math.min(wrap.clientWidth / W, wrap.clientHeight / H);
+    canvas.style.width = Math.floor(W * scale) + 'px';
+    canvas.style.height = Math.floor(H * scale) + 'px';
+  }
+
+  function syncLayout() {
+    var show = wantsDeck();
+    document.body.classList.toggle('show-deck', show);
+    if (!autoDefaulted) {
+      autoFire = show;
+      autoDefaulted = true;
+    }
+    syncChrome();
+    resize();
+  }
+  window.addEventListener('resize', syncLayout);
+  window.addEventListener('orientationchange', function () { setTimeout(syncLayout, 60); });
+  syncLayout();
+
+  var lastT = 0;
+  function loop(t) {
+    var dt = Math.min(0.05, (t - lastT) / 1000 || 0);
+    lastT = t;
+    if (!window.__classicHold && !document.hidden) {
+      if (state === 'playing') update(dt);
+      else if (state === 'wave') updateWave(dt);
+      updateSparks(dt);
+      updatePopups(dt);
+      updateUfoSound(dt);
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  hiScore = loadHi();
+  requestAnimationFrame(loop);
+
+  window.__classicDiag = function () {
+    var minX = null, minY = null, alive = 0, dying = 0, cells = 0;
+    for (var i = 0; i < invaders.length; i++) {
+      var inv = invaders[i];
+      if (inv.alive) {
+        alive++;
+        if (minX === null || inv.x < minX) minX = inv.x;
+        if (minY === null || inv.y < minY) minY = inv.y;
+      }
+      if (inv.dying > 0) dying++;
+    }
+    for (var c = 0; c < shieldCells.length; c++) if (shieldCells[c].alive) cells++;
+    return {
+      version: BUILD_VERSION,
+      state: state,
+      score: score,
+      lives: lives,
+      wave: wave,
+      autoFire: autoFire,
+      muted: muted,
+      alive: alive,
+      dying: dying,
+      minX: minX,
+      minY: minY,
+      dir: dir,
+      shieldCells: cells,
+      ufo: ufo ? { x: Math.round(ufo.x), alive: ufo.alive, points: ufo.points } : null,
+      playerX: Math.round(player.x),
+      playerBullet: !!playerBullet,
+      invBullets: invBullets.length,
+      invShots: stats.invShots,
+      stepDelay: alive ? stepDelay() : null,
+      audio: audioCtx ? audioCtx.state : 'none',
+      ufoSound: !!ufoSnd,
+      needsUnlock: audioNeedsUnlock,
+      deck: document.body.classList.contains('show-deck'),
+      overReason: overReason,
+      hiScore: hiScore
+    };
+  };
+
+  window.__classicDebug = {
+    start: function () { startGame(true); },
+    pause: togglePause,
+    spawnUfo: spawnUfo,
+    setAuto: function (v) { autoFire = !!v; syncAutoBtn(); },
+    mute: function () { if (!muted) toggleMute(); },
+    unmute: function () { if (muted) toggleMute(); },
+    killAllBut: function (n) {
+      var kept = 0;
+      for (var i = 0; i < invaders.length; i++) {
+        if (!invaders[i].alive) continue;
+        if (kept < n) kept++;
+        else invaders[i].alive = false;
+      }
+    },
+    clearColumn: function () {
+      var mid = player.x + player.w / 2;
+      var best = null, bestDist = Infinity;
+      for (var i = 0; i < invaders.length; i++) {
+        var inv = invaders[i];
+        if (!inv.alive) continue;
+        var d = Math.abs(inv.x + inv.w / 2 - mid);
+        if (d < bestDist) { bestDist = d; best = inv.c; }
+      }
+      if (best === null) return;
+      for (var j = 0; j < invaders.length; j++) {
+        if (invaders[j].c === best) invaders[j].alive = false;
+      }
+    },
+    standUnderShield: function () {
+      player.x = (W / 8) - player.w / 2;
+    },
+    placeUfoOverPlayer: function () {
+      spawnUfo();
+      ufo.x = player.x + player.w / 2 - ufo.w / 2;
+      ufo.vx = 0;
+      ufo.alive = true;
+    },
+    hurtShield: function () {
+      var n = 0;
+      for (var i = 0; i < shieldCells.length && n < 12; i++) {
+        if (shieldCells[i].alive) { shieldCells[i].alive = false; n++; }
+      }
+    },
+    dropBulletOnPlayer: function () {
+      invBullets.push({
+        baseX: player.x + player.w / 2 - 2,
+        x: player.x + player.w / 2 - 2,
+        y: player.y - 16,
+        w: 4,
+        h: 8,
+        age: 0
+      });
+    },
+    lowerAlive: function () {
+      for (var i = 0; i < invaders.length; i++) {
+        if (invaders[i].alive) invaders[i].y = player.y;
+      }
+    },
+    grant: function (n) { addScore(n); },
+    quiet: function () {
+      for (var i = 0; i < invaders.length; i++) {
+        invaders[i].alive = false;
+        invaders[i].dying = 30;
+      }
+      invBullets.length = 0;
+      ufo = null;
+      stopUfoSound();
+    },
+    setPlayerX: function (x) { player.x = x; },
+    fast: function (seconds) {
+      var left = seconds;
+      while (left > 0) {
+        var d = Math.min(1 / 60, left);
+        if (state === 'playing') update(d);
+        else if (state === 'wave') updateWave(d);
+        updateSparks(d);
+        updatePopups(d);
+        left -= d;
+      }
+    }
+  };
+})();
+  </script>
+</body>
+</html>
